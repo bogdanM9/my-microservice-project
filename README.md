@@ -475,6 +475,15 @@ db_instance_class = "db.t3.small"
 db_multi_az       = true
 ```
 
+Reachable from outside the VPC, for example from your own laptop while
+developing. This moves the database into the public subnets and gives it a
+public address, so the allowed range is not defaulted to the whole internet:
+
+```hcl
+db_publicly_accessible = true
+db_public_cidr_blocks  = ["203.0.113.7/32"]   # your address, not 0.0.0.0/0
+```
+
 Then:
 
 ```bash

@@ -140,3 +140,15 @@ variable "db_username" {
   type        = string
   default     = "dbadmin"
 }
+
+variable "db_publicly_accessible" {
+  description = "Put the database in the public subnets and give it a public address. Leave it false for anything that matters"
+  type        = bool
+  default     = false
+}
+
+variable "db_public_cidr_blocks" {
+  description = "Ranges allowed in when db_publicly_accessible is true. Deliberately not 0.0.0.0/0 by default, put your own address here"
+  type        = list(string)
+  default     = []
+}

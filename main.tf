@@ -96,10 +96,18 @@ module "rds" {
   db_name  = var.db_name
   username = var.db_username
 
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnet_ids
+  vpc_id = module.vpc.vpc_id
 
-  allowed_cidr_blocks = [module.vpc.vpc_cidr_block]
+  # Private subnets by default, so the database has no route to the internet.
+  # Flipping db_publicly_accessible moves it to the public subnets and gives it
+  # a public address, which is occasionally useful while developing and a bad
+  # idea otherwise.
+  subnet_ids          = var.db_publicly_accessible ? module.vpc.public_subnet_ids : module.vpc.private_subnet_ids
+  publicly_accessible = var.db_publicly_accessible
+
+  # Only the VPC itself is allowed in. The application pods sit inside it, so
+  # that is all they need.
+  allowed_cidr_blocks = var.db_publicly_accessible ? var.db_public_cidr_blocks : [module.vpc.vpc_cidr_block]
 
   tags = { Component = "database" }
 }
