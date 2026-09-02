@@ -11,7 +11,7 @@ resource "aws_rds_cluster" "this" {
 
   cluster_identifier = "${var.name}-cluster"
   engine             = var.engine
-  engine_version     = var.engine_version
+  engine_version     = local.engine_version
 
   database_name   = var.db_name
   master_username = var.username

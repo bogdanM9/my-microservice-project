@@ -41,13 +41,13 @@ variable "engine" {
 }
 
 variable "engine_version" {
-  description = "Engine version, for example 16.6 for postgres and aurora-postgresql, or 8.0.39 for mysql. Change it together with engine, because the parameter group family is derived from both."
+  description = "Engine version, as a prefix. \"16\" takes the newest 16.x, \"16.4\" pins that release, and null, the default, takes the newest version the engine offers. The module resolves it against the RDS API rather than trusting the string, so a version AWS has retired cannot break the apply."
   type        = string
-  default     = "16.6"
+  default     = null
 }
 
 variable "parameter_group_family" {
-  description = "Overrides the derived parameter group family, for example postgres16 or mysql8.0. Leave it null and the module works the family out from engine and engine_version."
+  description = "Overrides the parameter group family, for example postgres16 or mysql8.0. Leave it null and the module takes the family AWS reports for the resolved version."
   type        = string
   default     = null
 }

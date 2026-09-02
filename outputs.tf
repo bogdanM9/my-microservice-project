@@ -105,6 +105,11 @@ output "db_reader_endpoint" {
   value       = module.rds.reader_endpoint
 }
 
+output "db_engine_version" {
+  description = "The engine version that was actually created"
+  value       = module.rds.engine_version
+}
+
 output "db_port" {
   description = "Port the database listens on"
   value       = module.rds.port

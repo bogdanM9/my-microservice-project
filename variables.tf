@@ -106,9 +106,9 @@ variable "db_engine" {
 }
 
 variable "db_engine_version" {
-  description = "Engine version. Change it together with db_engine, the parameter group family is derived from both"
+  description = "Engine version, as a prefix. \"16\" takes the newest 16.x, null takes the newest the engine offers. The rds module resolves it against the RDS API, so a version AWS has retired cannot break the apply"
   type        = string
-  default     = "16.6"
+  default     = null
 }
 
 variable "db_instance_class" {

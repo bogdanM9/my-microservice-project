@@ -70,3 +70,13 @@ output "cluster_parameter_group_name" {
   description = "Aurora only. Name of the cluster level parameter group. null for a standard instance."
   value       = try(aws_rds_cluster_parameter_group.this[0].name, null)
 }
+
+output "engine_version" {
+  description = "The version that was actually created, resolved from the prefix against the RDS API."
+  value       = local.engine_version
+}
+
+output "parameter_group_family" {
+  description = "Family the parameter groups were created with."
+  value       = local.parameter_group_family
+}

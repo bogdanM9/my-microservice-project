@@ -4,19 +4,35 @@
 # surrounding plumbing does not change.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Ask AWS which version actually exists.
+#
+# Deriving the parameter group family from a version string written by hand
+# looks clever until AWS retires that version. The first apply of this project
+# failed with "Cannot find version 16.6 for postgres", because 16.6 had been
+# withdrawn from eu-central-1. This data source resolves both the version and
+# the matching family from the API instead, so the module keeps working as AWS
+# moves on.
+#
+# engine_version is a prefix: "16" takes the newest 16.x, "16.4" pins that
+# release, null takes the newest version the engine offers.
+# ---------------------------------------------------------------------------
+data "aws_rds_engine_version" "this" {
+  engine  = var.engine
+  version = var.engine_version
+  latest  = true
+}
+
 locals {
   # aurora-postgresql and postgres both match, which is exactly what we want.
   is_postgres = can(regex("postgres", var.engine))
 
-  version_parts = split(".", var.engine_version)
+  engine_version = data.aws_rds_engine_version.this.version_actual
 
-  # PostgreSQL parameter group families carry only the major version, so 16.6
-  # becomes postgres16. MySQL families carry major and minor, so 8.0.39 becomes
-  # mysql8.0. Aurora MySQL version strings look like 8.0.mysql_aurora.3.08.2,
-  # and taking the first two parts of that still gives 8.0.
-  family_version = local.is_postgres ? local.version_parts[0] : join(".", slice(local.version_parts, 0, min(2, length(local.version_parts))))
-
-  parameter_group_family = coalesce(var.parameter_group_family, "${var.engine}${local.family_version}")
+  parameter_group_family = coalesce(
+    var.parameter_group_family,
+    data.aws_rds_engine_version.this.parameter_group_family,
+  )
 
   port = coalesce(var.port, local.is_postgres ? 5432 : 3306)
 

@@ -183,6 +183,7 @@ Everything in this table actually happened while building this project.
 | seed-job: `script not yet approved for use` | Job DSL script security. The `job-dsl-security` block in `modules/jenkins/values.yaml` turns it off |
 | Pipeline: `Invalid option type "timestamps"` | The `timestamper` plugin is missing from `installPlugins` |
 | Node group: `not eligible for Free Tier` | See the note on the instance type below |
+| RDS: `Cannot find version 16.6 for postgres` | The version was pinned by hand and AWS had withdrawn it. The module now resolves the version and the family from the RDS API |
 
 ## 3. View the result in Argo CD
 
@@ -288,7 +289,7 @@ module "rds" {
   use_aurora = false          # true builds an Aurora cluster instead
 
   engine         = "postgres" # or mysql, aurora-postgresql, aurora-mysql
-  engine_version = "16.6"
+  engine_version = "16"       # a prefix, resolved against the RDS API
   instance_class = "db.t3.micro"
 
   vpc_id              = module.vpc.vpc_id
@@ -304,11 +305,14 @@ subnet group, the security group with its rules, and a parameter group carrying
 switch is `count = var.use_aurora ? 1 : 0` and the branch not taken disappears
 from the plan.
 
-The parameter group family is derived rather than asked for, so `postgres` plus
-`16.6` becomes `postgres16` and `mysql` plus `8.0.39` becomes `mysql8.0`. On
-MySQL the default parameters change too, because `log_statement` and `work_mem`
-are PostgreSQL settings that MySQL rejects. Every variable is typed and
-described, and five of them validate their input.
+The version and the parameter group family are not written by hand. A
+`aws_rds_engine_version` data source resolves both from the RDS API, so
+`engine_version` is a prefix: `16` takes the newest 16.x and leaving it out takes
+the newest the engine offers. That is not gold plating: the first apply failed
+with `Cannot find version 16.6 for postgres`, because AWS had withdrawn that
+release from the region. On MySQL the default parameters change too, because
+`log_statement` and `work_mem` are PostgreSQL settings that MySQL rejects. Every
+variable is typed and described, and five of them validate their input.
 
 Switching the whole database is a change in `terraform.tfvars` only:
 
