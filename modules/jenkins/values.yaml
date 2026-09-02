@@ -46,6 +46,22 @@ controller:
 
     configScripts:
       # ---------------------------------------------------------------
+      # Job DSL script security.
+      #
+      # The seed job hands its script to the Job DSL plugin, and by
+      # default that plugin refuses to run one until an admin approves it
+      # by hand under Manage Jenkins, In-process Script Approval. That
+      # would mean a manual click on every fresh cluster, which defeats
+      # the point of keeping the job definition in the repository, so the
+      # check is turned off here. The only DSL that ever reaches this
+      # Jenkins is the one committed in this repository.
+      # ---------------------------------------------------------------
+      job-dsl-security: |
+        security:
+          globalJobDslSecurityConfiguration:
+            useScriptSecurity: false
+
+      # ---------------------------------------------------------------
       # Global environment variables.
       #
       # Terraform knows the account id and the region, so the Jenkinsfile
