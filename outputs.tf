@@ -92,3 +92,46 @@ output "argocd_password_command" {
   description = "Run this to read the initial Argo CD admin password"
   value       = module.argo_cd.admin_password_command
 }
+
+# --------------------------- Database ---------------------------
+
+output "db_endpoint" {
+  description = "Host to connect to. The Aurora writer endpoint, or the instance address"
+  value       = module.rds.endpoint
+}
+
+output "db_reader_endpoint" {
+  description = "Aurora only. Read only endpoint spread across the readers"
+  value       = module.rds.reader_endpoint
+}
+
+output "db_port" {
+  description = "Port the database listens on"
+  value       = module.rds.port
+}
+
+output "db_name" {
+  description = "Name of the database"
+  value       = module.rds.database_name
+}
+
+output "db_master_username" {
+  description = "Master user name"
+  value       = module.rds.master_username
+}
+
+output "db_master_password" {
+  description = "Master password. Read it with terraform output -raw db_master_password"
+  value       = module.rds.master_password
+  sensitive   = true
+}
+
+output "db_security_group_id" {
+  description = "Security group in front of the database"
+  value       = module.rds.security_group_id
+}
+
+output "db_is_aurora" {
+  description = "Which branch of the module was built"
+  value       = module.rds.is_aurora
+}

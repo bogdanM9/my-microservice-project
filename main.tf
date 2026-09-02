@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.25"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -66,6 +70,38 @@ module "ecr" {
 
   repository_name = var.repository_name
   scan_on_push    = true
+}
+
+# ---------------------------------------------------------------------------
+# Database
+#
+# One call, two possible shapes. use_aurora = false gives a single RDS instance,
+# use_aurora = true gives an Aurora cluster, and nothing else in this file
+# changes. The subnets are the private ones, so the database has no route to the
+# internet, and the only thing allowed in is the CIDR of the VPC itself.
+# ---------------------------------------------------------------------------
+module "rds" {
+  source = "./modules/rds"
+
+  name       = "${var.project_name}-db"
+  use_aurora = var.use_aurora
+
+  engine         = var.db_engine
+  engine_version = var.db_engine_version
+  instance_class = var.db_instance_class
+  multi_az       = var.db_multi_az
+
+  aurora_replica_count = var.aurora_replica_count
+
+  db_name  = var.db_name
+  username = var.db_username
+
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnet_ids
+
+  allowed_cidr_blocks = [module.vpc.vpc_cidr_block]
+
+  tags = { Component = "database" }
 }
 
 # ---------------------------------------------------------------------------

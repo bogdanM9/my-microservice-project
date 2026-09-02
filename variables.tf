@@ -85,3 +85,58 @@ variable "argocd_chart_version" {
   type        = string
   default     = "5.51.6"
 }
+
+# ---------------------------------------------------------------------------
+# Database
+#
+# These are the only variables that have to change to swap the whole database
+# from a standard RDS instance to an Aurora cluster, or from PostgreSQL to
+# MySQL. Everything else the rds module needs it works out on its own.
+# ---------------------------------------------------------------------------
+variable "use_aurora" {
+  description = "false builds a single RDS instance, true builds an Aurora cluster. Aurora is not free tier eligible, so leave it false unless you mean it"
+  type        = bool
+  default     = false
+}
+
+variable "db_engine" {
+  description = "postgres or mysql for a standard instance, aurora-postgresql or aurora-mysql for a cluster"
+  type        = string
+  default     = "postgres"
+}
+
+variable "db_engine_version" {
+  description = "Engine version. Change it together with db_engine, the parameter group family is derived from both"
+  type        = string
+  default     = "16.6"
+}
+
+variable "db_instance_class" {
+  description = "db.t3.micro is free tier eligible for a standard instance. Aurora refuses anything smaller than db.t3.medium"
+  type        = string
+  default     = "db.t3.micro"
+}
+
+variable "db_multi_az" {
+  description = "Standard instance only: keep a standby in a second availability zone. Doubles the cost"
+  type        = bool
+  default     = false
+}
+
+variable "aurora_replica_count" {
+  description = "Read replicas on top of the Aurora writer. Ignored when use_aurora is false"
+  type        = number
+  default     = 0
+}
+
+variable "db_name" {
+  description = "Name of the database created inside the instance or cluster"
+  type        = string
+  default     = "appdb"
+}
+
+variable "db_username" {
+  description = "Master user name. The engines reserve admin and root, so do not use those"
+  type        = string
+  default     = "dbadmin"
+}
