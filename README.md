@@ -76,6 +76,16 @@ for what runs in the cluster. That is what makes this GitOps rather than just
 - `kubectl` and `helm`
 - A GitHub Personal Access Token with the `repo` scope
 
+The commands below are written for a POSIX shell. On Windows PowerShell every
+`kubectl ... | base64 -d` becomes:
+
+```powershell
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((kubectl -n jenkins get secret jenkins -o jsonpath='{.data.jenkins-admin-password}')))
+```
+
+and `echo "http://$(...)"` becomes a plain `kubectl` call, since PowerShell has
+no `$(...)` command substitution in double quotes.
+
 ## 1. How to apply Terraform
 
 ### Configure the variables
