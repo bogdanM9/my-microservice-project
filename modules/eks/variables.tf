@@ -21,9 +21,9 @@ variable "node_group_name" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type for the worker nodes. t3.medium is the smallest type that comfortably fits Jenkins plus Argo CD"
+  description = "EC2 instance type for the worker nodes. Must be free tier eligible on a Free Plan account, see the root variables.tf for the reasoning"
   type        = string
-  default     = "t3.medium"
+  default     = "m7i-flex.large"
 }
 
 variable "disk_size" {

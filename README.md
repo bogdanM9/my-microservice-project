@@ -309,11 +309,42 @@ The cluster is not free. Roughly, per day:
 | Item | Cost |
 |---|---|
 | EKS control plane | $2.40 |
-| 2 x t3.medium nodes | $2.00 |
+| 2 x m7i-flex.large nodes | $4.30 |
 | 3 load balancers (Jenkins, Argo CD, the app) | $1.30 |
 | EBS volumes, ECR storage, data transfer | small change |
 
-Around **$6 a day**, so do not leave it running.
+Around **$8 a day**, so do not leave it running.
+
+### A note on the instance type
+
+This account is on the AWS Free Plan. That plan refuses to launch any instance
+type that is not free tier eligible, and the first apply failed on exactly that:
+
+```
+AsgInstanceLaunchFailures: Could not launch On-Demand Instances.
+InvalidParameterCombination - The specified instance type is not eligible for Free Tier.
+```
+
+The types the account does allow:
+
+```bash
+aws ec2 describe-instance-types \
+  --filters "Name=free-tier-eligible,Values=true" \
+  --query "sort(InstanceTypes[].InstanceType)" \
+  --region eu-central-1 --output table
+```
+
+which returns `t3.micro`, `t3.small`, `t4g.micro`, `t4g.small`, `c7i-flex.large`
+and `m7i-flex.large`.
+
+The micro types cannot run this project. 1 GiB of RAM is less than the Jenkins
+controller alone requests, and more importantly the VPC CNI allows only **4 pods
+per node** on a micro instance, against the roughly 15 that CoreDNS,
+metrics-server, the EBS CSI controller, Jenkins, Argo CD and the application add
+up to. No number of micro nodes fixes the RAM problem.
+
+`m7i-flex.large` gives 8 GiB and about 29 pods per node, so two nodes are
+comfortable.
 
 ## Destroy everything
 

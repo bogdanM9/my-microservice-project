@@ -17,9 +17,25 @@ variable "cluster_name" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type for the EKS worker nodes"
+  description = <<-EOT
+    EC2 instance type for the EKS worker nodes.
+
+    This account is on the AWS Free Plan, which refuses to launch any instance
+    type that is not free tier eligible. t3.medium fails with
+    "InvalidParameterCombination - The specified instance type is not eligible
+    for Free Tier".
+
+    Eligible types in this account, from
+    `aws ec2 describe-instance-types --filters Name=free-tier-eligible,Values=true`:
+    t3.micro, t3.small, t4g.micro, t4g.small, c7i-flex.large, m7i-flex.large.
+
+    The micro types are unusable here: 1 GiB of RAM is less than Jenkins alone
+    requests, and the VPC CNI allows only 4 pods per node on them, against the
+    roughly 15 this project needs. m7i-flex.large gives 8 GiB and about 29 pods
+    per node.
+  EOT
   type        = string
-  default     = "t3.medium"
+  default     = "m7i-flex.large"
 }
 
 variable "repository_name" {
