@@ -1,5 +1,8 @@
-# Rendered by Terraform through templatefile(), so the ${...} placeholders are
+# Rendered by Terraform through templatefile(), so the placeholders below are
 # filled in from module inputs before Helm ever sees this file.
+#
+# Careful: templatefile evaluates every dollar-brace sequence in this file,
+# comments included. Do not write one here unless it names a real variable.
 
 argocdNamespace: ${namespace}
 
