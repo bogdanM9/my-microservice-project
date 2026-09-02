@@ -1,0 +1,42 @@
+## Values for the upstream argo-cd chart.
+
+server:
+  service:
+    type: LoadBalancer
+
+  # The load balancer terminates plain HTTP on port 80. Argo CD normally
+  # redirects HTTP to HTTPS and serves its own self signed certificate, which
+  # ends in a redirect loop behind an AWS load balancer. --insecure turns the
+  # redirect off.
+  #
+  # Fine for a lab cluster that lives for a few hours. In production this would
+  # be an ingress with a real certificate from ACM instead.
+  extraArgs:
+    - --insecure
+
+configs:
+  params:
+    server.insecure: true
+
+# Two nodes only, so keep the default single replica of everything and give the
+# components modest requests.
+controller:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+applicationSet:
+  enabled: false
+
+notifications:
+  enabled: false
+
+dex:
+  enabled: false

@@ -1,0 +1,45 @@
+{{- range .Values.applications }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Values.argocdNamespace }}
+  finalizers:
+    # Makes deleting the Application also delete what it deployed, instead of
+    # leaving orphaned pods and services behind.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .project }}
+
+  source:
+    repoURL: {{ .source.repoURL | quote }}
+    path: {{ .source.path | quote }}
+    targetRevision: {{ .source.targetRevision | quote }}
+    helm:
+      valueFiles:
+      {{- range .source.helm.valueFiles }}
+        - {{ . | quote }}
+      {{- end }}
+
+  destination:
+    server: {{ .destination.server | quote }}
+    namespace: {{ .destination.namespace | quote }}
+
+  syncPolicy:
+    automated:
+      prune: {{ .syncPolicy.automated.prune }}
+      selfHeal: {{ .syncPolicy.automated.selfHeal }}
+    {{- with .syncPolicy.syncOptions }}
+    syncOptions:
+      {{- range . }}
+      - {{ . }}
+      {{- end }}
+    {{- end }}
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m
+{{- end }}

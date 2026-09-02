@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars, paste your GitHub token, and you are done.
+#
+# terraform.tfvars is listed in .gitignore. Never commit it.
+
+github_username = "bogdanM9"
+github_repo_url = "https://github.com/bogdanM9/my-microservice-project.git"
+
+# Paste the Personal Access Token here. It needs the repo scope.
+github_token    = "PASTE_YOUR_GITHUB_TOKEN_HERE"
+
+# Everything below already has a sensible default, uncomment only to change it.
+# region                = "eu-central-1"
+# cluster_name          = "lesson-8-9-eks"
+# instance_type         = "t3.medium"
+# git_branch            = "lesson-8-9"
+# repository_name       = "django-app"

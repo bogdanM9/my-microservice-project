@@ -1,0 +1,171 @@
+// CI pipeline for the Django application.
+//
+// What it does, in order:
+//   1. builds the image from the Dockerfile at the repository root, with Kaniko
+//      so that no Docker daemon is needed inside Kubernetes
+//   2. pushes it to ECR
+//   3. rewrites the image tag in charts/django-app/values.yaml
+//   4. commits and pushes that change back to this branch
+//
+// Step 4 is what hands over to Argo CD. Jenkins never talks to the cluster.
+// It only changes Git, and Argo CD does the deploying. That separation is the
+// whole point of GitOps: the cluster state is whatever Git says it is.
+
+pipeline {
+
+  // Each build runs in a throwaway pod with two containers.
+  agent {
+    kubernetes {
+      defaultContainer 'jnlp'
+      yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  # Carries the IRSA annotation, which is how Kaniko gets permission to push
+  # to ECR without any access key being stored anywhere.
+  serviceAccountName: jenkins-sa
+
+  containers:
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:v1.23.2-debug
+      imagePullPolicy: IfNotPresent
+      command: ["/busybox/cat"]
+      tty: true
+      volumeMounts:
+        - name: kaniko-docker-config
+          mountPath: /kaniko/.docker
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+
+    - name: git
+      image: alpine/git:2.45.2
+      command: ["cat"]
+      tty: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+
+  volumes:
+    # Tells Kaniko to authenticate to our registry with the ECR credential
+    # helper. Created by the Jenkins Terraform module.
+    - name: kaniko-docker-config
+      configMap:
+        name: kaniko-docker-config
+        items:
+          - key: config.json
+            path: config.json
+"""
+    }
+  }
+
+  options {
+    timeout(time: 30, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    timestamps()
+  }
+
+  environment {
+    // ECR_REGISTRY and AWS_REGION are set as global Jenkins environment
+    // variables by Terraform, in modules/jenkins/values.yaml. Terraform knows
+    // the account id and the region, so they are not hardcoded here.
+    IMAGE_NAME = 'django-app'
+    IMAGE_TAG  = "v1.0.${BUILD_NUMBER}"
+
+    CHART_VALUES    = 'charts/django-app/values.yaml'
+    GIT_BRANCH_NAME = 'lesson-8-9'
+
+    COMMIT_NAME  = 'jenkins'
+    COMMIT_EMAIL = 'jenkins@ci.local'
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        checkout scm
+        script {
+          if (!env.ECR_REGISTRY?.trim()) {
+            error("ECR_REGISTRY is not set. Terraform normally sets it as a global environment variable in Manage Jenkins > System.")
+          }
+          echo "Building ${env.ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+      }
+    }
+
+    stage('Build and push image to ECR') {
+      steps {
+        container('kaniko') {
+          sh '''
+            set -eu
+
+            /kaniko/executor \
+              --context "$(pwd)" \
+              --dockerfile "$(pwd)/Dockerfile" \
+              --destination "${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}" \
+              --destination "${ECR_REGISTRY}/${IMAGE_NAME}:latest" \
+              --cache=true \
+              --cache-repo "${ECR_REGISTRY}/${IMAGE_NAME}" \
+              --verbosity info
+          '''
+        }
+      }
+    }
+
+    stage('Update image tag in Git') {
+      steps {
+        container('git') {
+          // The credential id comes from the Jenkins configuration that
+          // Terraform wrote through JCasC.
+          withCredentials([usernamePassword(
+            credentialsId: 'github-token',
+            usernameVariable: 'GIT_USER',
+            passwordVariable: 'GIT_TOKEN'
+          )]) {
+            sh '''
+              set -eu
+
+              git config --global --add safe.directory "$(pwd)"
+              git config user.name  "${COMMIT_NAME}"
+              git config user.email "${COMMIT_EMAIL}"
+
+              # Rewrite only the tag line under image:. Anchored on two spaces
+              # so it cannot accidentally match a tag key somewhere else.
+              sed -i "s|^  tag: .*|  tag: \\"${IMAGE_TAG}\\"|" "${CHART_VALUES}"
+
+              echo "--- ${CHART_VALUES} after the update ---"
+              cat "${CHART_VALUES}"
+
+              # Nothing to do if the tag did not actually change. Without this
+              # the build fails on "nothing to commit" when it is re-run.
+              if git diff --quiet -- "${CHART_VALUES}"; then
+                echo "Tag unchanged, skipping commit."
+                exit 0
+              fi
+
+              git add "${CHART_VALUES}"
+              git commit -m "ci: bump django-app image tag to ${IMAGE_TAG} [skip ci]"
+
+              # The remote is rewritten with the token so the push authenticates.
+              # Credentials never reach the log because withCredentials masks them.
+              REPO_PATH="$(git config --get remote.origin.url | sed -e 's|^https://||' -e 's|^git@github.com:|github.com/|')"
+              git push "https://${GIT_USER}:${GIT_TOKEN}@${REPO_PATH}" "HEAD:${GIT_BRANCH_NAME}"
+            '''
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "Pushed ${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} and updated ${CHART_VALUES}."
+      echo "Argo CD picks the change up on its next poll, or immediately if you press Refresh."
+    }
+    failure {
+      echo "Build failed. Check the Kaniko stage first, it is where ECR permission problems show up."
+    }
+  }
+}

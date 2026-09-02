@@ -1,0 +1,43 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Django on EKS | CI/CD demo</title>
+    <link rel="stylesheet" href="{% static 'core/style.css' %}" />
+  </head>
+  <body>
+    <main class="card">
+      <p class="eyebrow">Jenkins &rarr; ECR &rarr; Git &rarr; Argo CD</p>
+      <h1>Deployed by the pipeline</h1>
+
+      <dl class="facts">
+        <div>
+          <dt>Image version</dt>
+          <dd class="version">{{ version }}</dd>
+        </div>
+        <div>
+          <dt>Environment</dt>
+          <dd>{{ environment }}</dd>
+        </div>
+        <div>
+          <dt>Pod</dt>
+          <dd class="pod">{{ pod }}</dd>
+        </div>
+      </dl>
+
+      <p class="hint">
+        Nobody ran <code>kubectl apply</code> to put this page here. Jenkins
+        built the image and pushed it to ECR, then committed the new tag to Git.
+        Argo CD noticed the commit and rolled the Deployment.
+      </p>
+
+      <footer>
+        <span>Munteanu Bogdan</span>
+        <span aria-hidden="true">&middot;</span>
+        <span>lesson-8-9</span>
+      </footer>
+    </main>
+  </body>
+</html>

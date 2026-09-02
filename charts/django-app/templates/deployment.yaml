@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "django-app.fullname" . }}
+  labels:
+    {{- include "django-app.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "django-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "django-app.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Restarts the pods when the ConfigMap changes. Without this, editing a
+        # value in the ConfigMap leaves the old value in the running container
+        # until something else happens to restart it.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: django
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: {{ include "django-app.fullname" . }}-config
+
+          env:
+            # Shown on the home page, so the running version is visible in the
+            # browser and not only in kubectl output.
+            - name: APP_VERSION
+              value: {{ .Values.image.tag | quote }}
+
+          {{- if .Values.probes.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ add .Values.probes.initialDelaySeconds 10 }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+          {{- end }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

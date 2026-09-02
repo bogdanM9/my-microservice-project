@@ -1,0 +1,41 @@
+# Rendered by Terraform through templatefile(), so the ${...} placeholders are
+# filled in from module inputs before Helm ever sees this file.
+
+argocdNamespace: ${namespace}
+
+applications:
+  - name: ${app_name}
+    project: default
+
+    source:
+      # The repository Argo CD watches. This is the same repository Jenkins
+      # pushes the new image tag into, which is what closes the GitOps loop.
+      repoURL: ${github_repo_url}
+
+      # Path inside the repository that holds the Helm chart.
+      path: ${chart_path}
+
+      # Branch to track. Jenkins commits the tag bump to this same branch, and
+      # Argo CD notices within about three minutes, or immediately if you press
+      # Refresh in the UI.
+      targetRevision: ${git_branch}
+
+      helm:
+        valueFiles:
+          - values.yaml
+
+    destination:
+      # In cluster, so the address is the internal Kubernetes API service.
+      server: https://kubernetes.default.svc
+      namespace: ${destination_ns}
+
+    syncPolicy:
+      automated:
+        # Delete resources that were removed from Git.
+        prune: true
+        # Undo changes made by hand in the cluster, so Git stays the source of
+        # truth. This is the part that makes it GitOps rather than just
+        # automated deployment.
+        selfHeal: true
+      syncOptions:
+        - CreateNamespace=true

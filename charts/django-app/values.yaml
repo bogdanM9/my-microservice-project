@@ -1,0 +1,49 @@
+# Values for the django-app chart.
+#
+# IMPORTANT: image.tag is written by the Jenkins pipeline. The "Update image tag
+# in Git" stage runs sed against the line below and commits the result. Keep the
+# key on one line and in this exact shape, or the sed expression stops matching.
+
+image:
+  # Set by hand once, after the first terraform
+  # apply. The value is printed as the ecr_repository_url output.
+  repository: 256329411019.dkr.ecr.eu-central-1.amazonaws.com/django-app
+  tag: "v1.0.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+# Environment variables handed to the container through a ConfigMap.
+config:
+  DJANGO_ALLOWED_HOSTS: "*"
+  APP_ENVIRONMENT: "eks"
+  DEBUG: "0"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+# Probes hit /healthz/, which returns 200 without doing any work.
+probes:
+  enabled: true
+  path: /healthz/
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+ingress:
+  enabled: false

@@ -1,0 +1,141 @@
+controller:
+  admin:
+    username: "${admin_user}"
+    password: "${admin_password}"
+
+  # Exposed through an AWS load balancer so the UI is reachable from a browser.
+  serviceType: LoadBalancer
+  servicePort: 80
+  targetPort: 8080
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "3Gi"
+
+  # Plugins the pipeline depends on.
+  #   kubernetes            - runs build agents as pods
+  #   workflow-aggregator   - the Pipeline suite
+  #   git                   - checkout
+  #   configuration-as-code - reads the JCasC blocks below
+  #   credentials-binding   - withCredentials in the Jenkinsfile
+  #   job-dsl               - lets the seed job create the pipeline job
+  # Left unpinned on purpose. Pinning a plugin to a version that is not
+  # compatible with the Jenkins core shipped by the chart makes the controller
+  # fail to boot, and the chart already picks matching versions.
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - configuration-as-code
+    - credentials-binding
+    - job-dsl
+    - github
+
+  JCasC:
+    defaultConfig: true
+
+    configScripts:
+      # ---------------------------------------------------------------
+      # Global environment variables.
+      #
+      # Terraform knows the account id and the region, so the Jenkinsfile
+      # does not have to hardcode them.
+      # ---------------------------------------------------------------
+      global-env: |
+        jenkins:
+          globalNodeProperties:
+            - envVars:
+                env:
+                  - key: "ECR_REGISTRY"
+                    value: "${ecr_registry}"
+                  - key: "AWS_REGION"
+                    value: "${aws_region}"
+                  - key: "AWS_DEFAULT_REGION"
+                    value: "${aws_region}"
+
+      # ---------------------------------------------------------------
+      # GitHub credentials, injected by Terraform from terraform.tfvars
+      # ---------------------------------------------------------------
+      credentials: |
+        credentials:
+          system:
+            domainCredentials:
+              - credentials:
+                  - usernamePassword:
+                      scope: GLOBAL
+                      id: "github-token"
+                      username: "${github_username}"
+                      password: "${github_token}"
+                      description: "GitHub PAT used to clone and to push the tag update"
+
+      # ---------------------------------------------------------------
+      # Seed job. Creates the real pipeline job on first run, so the
+      # pipeline itself is defined in the repository and not clicked
+      # together in the UI.
+      # ---------------------------------------------------------------
+      seed-job: |
+        jobs:
+          - script: >
+              job('seed-job') {
+                description('Generates the ${job_name} pipeline job from the repository')
+                scm {
+                  git {
+                    remote {
+                      url('${github_repo_url}')
+                      credentials('github-token')
+                    }
+                    branches('*/${git_branch}')
+                  }
+                }
+                steps {
+                  dsl {
+                    text('''
+                      pipelineJob("${job_name}") {
+                        description("Builds the Django image, pushes it to ECR and updates the Helm chart tag")
+                        definition {
+                          cpsScm {
+                            scriptPath("Jenkinsfile")
+                            scm {
+                              git {
+                                remote {
+                                  url("${github_repo_url}")
+                                  credentials("github-token")
+                                }
+                                branches("*/${git_branch}")
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ''')
+                  }
+                }
+              }
+
+  # Jenkins keeps its jobs, config and build history on this volume.
+  persistence:
+    enabled: true
+    storageClass: "${storage_class}"
+    size: 10Gi
+
+serviceAccount:
+  create: false
+  name: "${service_account_name}"
+
+# Build agents use the same service account, which is the one carrying the
+# IRSA annotation. That is how the Kaniko pod gets permission to push to ECR.
+serviceAccountAgent:
+  create: false
+  name: "${service_account_name}"
+
+agent:
+  enabled: true
+  namespace: jenkins
+
+rbac:
+  create: true
+  readSecrets: true
