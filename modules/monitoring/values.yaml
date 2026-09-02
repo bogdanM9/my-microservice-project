@@ -1,0 +1,120 @@
+# Rendered by Terraform through templatefile(), so every dollar-brace sequence
+# in this file is substituted before Helm sees it. Do not write one in a comment
+# unless it names a real variable.
+
+# ---------------------------------------------------------------------------
+# Prometheus
+# ---------------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    retention: "${prometheus_retention}"
+
+    # Without this the operator only picks up ServiceMonitors that carry the
+    # release label, which means anything created outside this chart is silently
+    # ignored. Turning the selectors off makes Prometheus watch every
+    # ServiceMonitor and PodMonitor in the cluster.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "1Gi"
+      limits:
+        memory: "2Gi"
+
+    # The time series database needs a real volume. An emptyDir would lose every
+    # sample each time the pod moves.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "${storage_class}"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: "${prometheus_storage_size}"
+
+# ---------------------------------------------------------------------------
+# Grafana
+#
+# The chart ships the Kubernetes dashboards and points Grafana at Prometheus on
+# its own, so there is nothing to import by hand after the install.
+# ---------------------------------------------------------------------------
+grafana:
+  enabled: true
+
+  adminUser: "${grafana_admin_user}"
+  adminPassword: "${grafana_admin_password}"
+
+  service:
+    type: ${grafana_service_type}
+    port: 80
+
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: "${storage_class}"
+    accessModes: ["ReadWriteOnce"]
+    size: "${grafana_storage_size}"
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"
+
+  # Dashboards that come with the chart. Left on, they are the ones a reviewer
+  # opens first: cluster, namespace, node and pod views.
+  defaultDashboardsEnabled: true
+
+# ---------------------------------------------------------------------------
+# Alertmanager
+#
+# On, because the alerting rules the chart ships have to go somewhere, but with
+# no receiver configured. Wiring it to Slack or email is a different exercise.
+# ---------------------------------------------------------------------------
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        memory: "256Mi"
+
+# ---------------------------------------------------------------------------
+# Exporters
+#
+# node-exporter gives CPU, memory, disk and network per node. kube-state-metrics
+# gives the state of Kubernetes objects, which is where deployment replica counts
+# and HPA numbers come from.
+# ---------------------------------------------------------------------------
+nodeExporter:
+  enabled: true
+
+kube-state-metrics:
+  enabled: true
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+
+# ---------------------------------------------------------------------------
+# EKS runs the control plane, so these components are not reachable and their
+# targets would sit red forever. Turning them off keeps the target list honest.
+# ---------------------------------------------------------------------------
+kubeApiServer:
+  enabled: true
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false

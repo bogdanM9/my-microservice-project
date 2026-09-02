@@ -34,6 +34,13 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "django-app.fullname" . }}-config
+            {{- if .Values.database.secretName }}
+            # Host, port, database name, user and password for RDS. The Secret
+            # is written by Terraform from the outputs of modules/rds, so none
+            # of it is in this repository.
+            - secretRef:
+                name: {{ .Values.database.secretName }}
+            {{- end }}
 
           env:
             # Shown on the home page, so the running version is visible in the

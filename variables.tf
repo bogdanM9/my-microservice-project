@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "project_name" {
-  description = "Short prefix used in the name of every resource"
+  description = "Short prefix used in the name of every resource. Still lesson-8-9 because the cluster and the VPC were built during that task and renaming them would tear the whole environment down and build it again for nothing"
   type        = string
   default     = "lesson-8-9"
 }
@@ -64,7 +64,7 @@ variable "github_repo_url" {
 variable "git_branch" {
   description = "Branch that Jenkins reads from and Argo CD watches"
   type        = string
-  default     = "lesson-8-9"
+  default     = "final-project"
 }
 
 variable "jenkins_chart_version" {
@@ -151,4 +151,31 @@ variable "db_public_cidr_blocks" {
   description = "Ranges allowed in when db_publicly_accessible is true. Deliberately not 0.0.0.0/0 by default, put your own address here"
   type        = list(string)
   default     = []
+}
+
+# ---------------------------------------------------------------------------
+# Monitoring and the application namespace
+# ---------------------------------------------------------------------------
+variable "monitoring_chart_version" {
+  description = "Version of the kube-prometheus-stack chart, which carries Prometheus, Alertmanager, Grafana, node-exporter and kube-state-metrics"
+  type        = string
+  default     = "88.6.2"
+}
+
+variable "grafana_service_type" {
+  description = "LoadBalancer gives Grafana its own address. ClusterIP keeps it inside the cluster, reachable only through kubectl port-forward"
+  type        = string
+  default     = "LoadBalancer"
+}
+
+variable "app_namespace" {
+  description = "Namespace the application runs in. Argo CD deploys the chart there, and the database Secret is written there"
+  type        = string
+  default     = "default"
+}
+
+variable "app_db_secret_name" {
+  description = "Name of the Secret holding the database connection. charts/django-app/values.yaml references it by this name"
+  type        = string
+  default     = "django-db"
 }

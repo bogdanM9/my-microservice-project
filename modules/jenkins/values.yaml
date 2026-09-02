@@ -122,7 +122,7 @@ controller:
                         description("Builds the Django image, pushes it to ECR and updates the Helm chart tag")
                         definition {
                           cpsScm {
-                            scriptPath("Jenkinsfile")
+                            scriptPath("django/Jenkinsfile")
                             scm {
                               git {
                                 remote {

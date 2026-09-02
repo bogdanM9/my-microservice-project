@@ -25,6 +25,13 @@
           <dt>Pod</dt>
           <dd class="pod">{{ pod }}</dd>
         </div>
+        <div>
+          <dt>Database</dt>
+          <dd class="pod">
+            {{ database.engine }} &middot;
+            {% if database.ok %}connected{% else %}{{ database.detail }}{% endif %}
+          </dd>
+        </div>
       </dl>
 
       <p class="hint">
@@ -36,7 +43,7 @@
       <footer>
         <span>Munteanu Bogdan</span>
         <span aria-hidden="true">&middot;</span>
-        <span>lesson-8-9</span>
+        <span>final project</span>
       </footer>
     </main>
   </body>

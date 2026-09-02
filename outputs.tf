@@ -135,3 +135,36 @@ output "db_is_aurora" {
   description = "Which branch of the module was built"
   value       = module.rds.is_aurora
 }
+
+# --------------------------- Monitoring ---------------------------
+
+output "monitoring_namespace" {
+  description = "Namespace the monitoring stack runs in"
+  value       = module.monitoring.namespace
+}
+
+output "grafana_admin_user" {
+  description = "Grafana administrator user name"
+  value       = module.monitoring.grafana_admin_user
+}
+
+output "grafana_admin_password" {
+  description = "Grafana administrator password. Read it with terraform output -raw grafana_admin_password"
+  value       = module.monitoring.grafana_admin_password
+  sensitive   = true
+}
+
+output "grafana_url_command" {
+  description = "Prints the Grafana address once the load balancer has one"
+  value       = module.monitoring.grafana_url_command
+}
+
+output "grafana_port_forward_command" {
+  description = "Reaches Grafana without the load balancer"
+  value       = module.monitoring.grafana_port_forward_command
+}
+
+output "prometheus_port_forward_command" {
+  description = "Prometheus has no load balancer on purpose. This reaches its UI"
+  value       = module.monitoring.prometheus_port_forward_command
+}

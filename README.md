@@ -1,22 +1,26 @@
-# CI/CD with Jenkins, Terraform, ECR, Helm and Argo CD, plus a universal database module
+# Final project: Django on AWS with Terraform, Jenkins, Argo CD and Prometheus
 
 Munteanu Bogdan
 
-A complete deployment pipeline for a Django application. Terraform builds the
-whole platform on AWS, Jenkins builds and publishes the image, and Argo CD
-deploys it. Nothing in the deployment path is done by hand.
+The whole platform is built by Terraform and the application is delivered
+without anyone touching the cluster. Jenkins builds the image and writes the new
+tag to Git, Argo CD reads Git and deploys, Prometheus and Grafana watch what
+comes out, and the application stores its data in RDS.
 
-Branch `lesson-db-module` adds `modules/rds` on top of that: one module that
-builds either a standard RDS instance or an Aurora cluster, decided by a single
-`use_aurora` flag. Section 4 covers it.
+Components, as the brief lists them: **VPC, EKS, RDS, ECR, Jenkins, Argo CD,
+Prometheus, Grafana**. Every one of them is created by `terraform apply`.
+
+![Architecture](docs/architecture.png)
+
+The delivery path on its own:
 
 ![CI/CD pipeline](docs/cicd-pipeline.png)
 
 ## How the pipeline works
 
-1. I push a code change to the `lesson-8-9` branch.
+1. I push a code change to the `final-project` branch.
 2. Jenkins clones the repository into a throwaway build pod.
-3. Kaniko builds the image from `Dockerfile` and pushes it to ECR as `v1.0.<build number>`.
+3. Kaniko builds the image from `django/Dockerfile` and pushes it to ECR as `v1.0.<build number>`.
 4. The `git` container rewrites `image.tag` in `charts/django-app/values.yaml` and commits that back to the same branch.
 5. Argo CD is watching that path in Git. It sees the new commit, notices the cluster no longer matches Git, and syncs.
 6. Kubernetes rolls the Deployment and pulls the new image from ECR.
@@ -38,6 +42,7 @@ for what runs in the cluster. That is what makes this GitOps rather than just
 | `modules/jenkins` | Namespace, storage class, IRSA role for ECR, Kaniko docker config, and the Jenkins Helm release configured through JCasC |
 | `modules/argo_cd` | Argo CD Helm release, the repository credential secret, and the Argo CD `Application` |
 | `modules/rds` | Universal database module. One RDS instance or a whole Aurora cluster, plus its subnet group, security group and parameter groups |
+| `modules/monitoring` | kube-prometheus-stack: Prometheus, Alertmanager, Grafana, node-exporter and kube-state-metrics, in the `monitoring` namespace |
 
 ## Repository layout
 
@@ -59,6 +64,8 @@ for what runs in the cluster. That is what makes this GitOps rather than just
 │   │                           variables.tf, outputs.tf
 │   ├── jenkins/                jenkins.tf, values.yaml, providers.tf,
 │   │                           variables.tf, outputs.tf
+│   ├── monitoring/             prometheus.tf, values.yaml, providers.tf,
+│   │                           variables.tf, outputs.tf
 │   └── argo_cd/                argo_cd.tf, values.yaml, providers.tf,
 │       └── charts/             variables.tf, outputs.tf
 │           ├── Chart.yaml      the Argo CD Application, as a small Helm chart
@@ -70,10 +77,17 @@ for what runs in the cluster. That is what makes this GitOps rather than just
 │   ├── values.yaml             image.tag on line 10 is what Jenkins rewrites
 │   └── templates/              deployment, service, configmap, hpa, _helpers
 │
-├── Dockerfile                  the image Kaniko builds
-├── Jenkinsfile                 the pipeline
-├── manage.py, config/, core/   the Django application
-└── docs/cicd-pipeline.png      the diagram above
+├── django/                     the application, everything it needs to run
+│   ├── Dockerfile              the image Kaniko builds
+│   ├── Jenkinsfile             the pipeline
+│   ├── docker-compose.yaml     the same app plus a Postgres, for local work
+│   ├── manage.py, requirements.txt
+│   ├── config/                 settings, urls, wsgi
+│   └── core/                   views, template, static file
+│
+└── docs/
+    ├── architecture.png        the diagram at the top
+    └── cicd-pipeline.png       the delivery path on its own
 ```
 
 ## Prerequisites
@@ -92,6 +106,17 @@ The commands below are written for a POSIX shell. On Windows PowerShell every
 
 and `echo "http://$(...)"` becomes a plain `kubectl` call, since PowerShell has
 no `$(...)` command substitution in double quotes.
+
+## The four stages, in the order the brief lists them
+
+| Stage | Command | Section |
+|---|---|---|
+| 1. Environment preparation | `terraform init`, then check `terraform.tfvars` | 1 |
+| 2. Infrastructure deployment | `terraform apply`, then `kubectl get all -n jenkins`, `-n argocd`, `-n monitoring` | 1 |
+| 3. Availability check | Jenkins and Argo CD, through their load balancers or `kubectl port-forward` | 2 and 3 |
+| 4. Monitoring and metrics | Grafana, and the HPA under load | 5 |
+
+The rest of this file is those stages in full.
 
 ## 1. How to apply Terraform
 
@@ -270,7 +295,7 @@ echo "http://$(kubectl get svc django-app-django-app -o jsonpath='{.status.loadB
 The home page shows the image version and the pod name. Now:
 
 1. Change something visible, for example a line in `core/templates/core/home.html`.
-2. Commit and push to `lesson-8-9`.
+2. Commit and push to `final-project`.
 3. Run **django-app-pipeline** in Jenkins.
 4. Watch Argo CD go OutOfSync, then Synced.
 5. Reload the page. The version number went up and the pod name changed.
@@ -498,11 +523,128 @@ tier eligible: a `db.t3.medium` writer is roughly 0.08 USD an hour, while the
 `db.t3.micro` standard instance is covered by the free tier for the first 750
 hours a month.
 
-### A note on the branch
+### A note on the names
 
-`git_branch` still defaults to `lesson-8-9`. Jenkins and Argo CD keep watching
-that branch on purpose, so the pipeline delivered for the previous task carries
-on working while this branch adds the database module.
+`git_branch` defaults to `final-project`, so Jenkins builds from this branch and
+Argo CD watches it.
+
+`project_name` and `cluster_name` still say `lesson-8-9`. The cluster, the VPC
+and the ECR repository were built during that task and renaming them would tear
+the entire environment down and build it again, for nothing but a nicer string.
+
+## 5. Monitoring: Prometheus and Grafana
+
+`modules/monitoring` installs kube-prometheus-stack into the `monitoring`
+namespace. One chart, because installing Prometheus and Grafana separately means
+wiring the scrape configuration and the Grafana data source by hand, and the
+chart already does both.
+
+What it brings, and what each part is for:
+
+| Component | What it gives |
+|---|---|
+| Prometheus | The time series database. 20 GiB on a gp3 volume, 7 days of retention |
+| Prometheus operator | Turns `ServiceMonitor` and `PodMonitor` objects into scrape configuration |
+| node-exporter | CPU, memory, disk and network for every node, as a DaemonSet |
+| kube-state-metrics | The state of Kubernetes objects: deployment replicas, pod restarts, and the HPA current and desired replica counts |
+| Grafana | The dashboards. The chart ships the cluster, node, namespace and pod ones and points them at Prometheus already |
+| Alertmanager | Where the alerting rules that ship with the chart send their alerts. No receiver is configured, wiring it to Slack is a different exercise |
+
+The selectors are deliberately opened up:
+
+```yaml
+serviceMonitorSelectorNilUsesHelmValues: false
+podMonitorSelectorNilUsesHelmValues: false
+```
+
+Without those two lines the operator only picks up monitors that carry the
+release label, so anything created outside this chart is silently ignored and
+the target list looks fine while missing half the cluster.
+
+`kubeControllerManager`, `kubeScheduler`, `kubeEtcd` and `kubeProxy` are turned
+off. EKS runs the control plane and does not expose them, so leaving them on
+gives four targets that sit red forever and make the target page useless.
+
+### Open Grafana
+
+```bash
+kubectl -n monitoring get svc kube-prometheus-stack-grafana
+```
+
+Wait for `EXTERNAL-IP`, then open it in a browser. User `admin`, and the
+password:
+
+```bash
+terraform output -raw grafana_admin_password
+```
+
+The brief asks for a port-forward instead, which works the same and does not go
+through the load balancer:
+
+```bash
+kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n monitoring
+```
+
+Prometheus has no load balancer on purpose. Its UI is reachable the same way:
+
+```bash
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+```
+
+### What to look at
+
+In Grafana, **Dashboards**, then:
+
+- **Kubernetes / Compute Resources / Cluster** for the whole cluster
+- **Kubernetes / Compute Resources / Namespace (Workloads)**, namespace
+  `default`, for the application
+- **Node Exporter / Nodes** for the machines themselves
+
+To see the autoscaling, put some load on the application and watch the pod count
+climb from 2 towards 6:
+
+```bash
+kubectl get hpa -w
+```
+
+In Prometheus, these two queries show the same thing in numbers:
+
+```promql
+kube_horizontalpodautoscaler_status_current_replicas{horizontalpodautoscaler="django-app-django-app"}
+kube_horizontalpodautoscaler_spec_target_metric{horizontalpodautoscaler="django-app-django-app"}
+```
+
+## 6. How the application reaches the database
+
+Nothing about the database is committed. The chain is:
+
+1. `modules/rds` builds the instance and generates the master password.
+2. The root `main.tf` writes a Kubernetes Secret named `django-db` in the
+   application namespace, filled from the module outputs: host, port, database
+   name, user, password.
+3. `charts/django-app/values.yaml` names that Secret, and the Deployment reads
+   it with `envFrom`, so the values arrive as environment variables.
+4. `django/config/settings.py` reads `POSTGRES_HOST` and the rest. When the
+   variable is missing, which is the case for a plain `docker run` or a test, it
+   falls back to a local SQLite file and still starts.
+
+The Helm chart therefore never contains a host name or a password, and neither
+does the repository. Terraform is the only thing that knows both halves.
+
+To check it from outside, the home page shows the database line, and there is an
+endpoint that answers in JSON:
+
+```bash
+curl "http://$(kubectl get svc django-app-django-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')/dbz/"
+```
+
+```json
+{"engine": "postgresql", "host": "lesson-8-9-db.xxxx.eu-central-1.rds.amazonaws.com", "ok": true, "detail": "connected"}
+```
+
+It returns 503 instead of 200 when the query fails, so it can be curled from a
+script. The probes deliberately do not use it: a probe that touches the database
+turns a slow query into a restart loop.
 
 ## Design decisions worth explaining
 
@@ -530,10 +672,26 @@ and nothing else. Pointing a liveness probe at a page that queries a database
 turns a slow query into a restart loop, and a restart loop into an outage.
 
 **No NAT gateway.** The nodes are in public subnets. A NAT gateway costs about
-$33 a month and nothing in this project runs in the private subnets, so it would
-be pure waste. The private subnets exist and are tagged for internal load
-balancers, so moving the node group into them later is a one line change, but a
-NAT gateway has to be added at the same time or the nodes never become Ready.
+$33 a month, and the only thing in the private subnets is RDS, which has no
+reason to reach the internet: the pods connect to it from inside the VPC and
+nothing goes the other way. Moving the node group into the private subnets later
+is a one line change, but a NAT gateway has to be added at the same time or the
+nodes never become Ready.
+
+**The database is not reachable from the internet.** It sits in the private
+subnets, its security group allows port 5432 from the VPC CIDR and from nothing
+else, and it is encrypted at rest. The password is generated by Terraform and
+handed to the pods through a Kubernetes Secret, so it is in the state file and in
+the cluster, and nowhere else.
+
+**The gp3 storage class is created by the Jenkins module.** It is cluster wide
+and not specific to Jenkins, so on paper it belongs to the EKS module. It cannot
+live there: the Kubernetes provider is configured from the EKS cluster data
+source, so a Kubernetes resource inside that module would need the provider
+before the module it depends on has finished, which is a dependency cycle. It
+sits in the first module that needed a volume, and the monitoring module takes
+the name from that module's output rather than hardcoding the string, so
+Terraform knows the order.
 
 ## Cost
 
@@ -546,8 +704,10 @@ The cluster is not free. Roughly, per day:
 | 3 load balancers (Jenkins, Argo CD, the app) | $1.30 |
 | EBS volumes, ECR storage, data transfer | small change |
 | RDS db.t3.micro, single AZ | free tier for the first 750 hours a month |
+| Prometheus and Grafana volumes, 25 GiB | about $0.10 |
+| 4th load balancer, for Grafana | $0.45 |
 
-Around **$8 a day**, so do not leave it running.
+Around **$9 a day**, so do not leave it running.
 
 Turning on Aurora changes that. A `db.t3.medium` writer is about 0.08 USD an
 hour, roughly 2 USD a day, and each reader costs the same again.
@@ -596,6 +756,14 @@ kubectl get svc
 
 terraform destroy
 ```
+
+`terraform destroy` takes care of the other three load balancers, the Jenkins
+one, the Argo CD one and the Grafana one, because those services are part of
+Helm releases that Terraform owns. The application load balancer is the only one
+it does not know about, which is why the Argo CD Application goes first.
+
+The RDS instance is deleted with `skip_final_snapshot = true`, so nothing is
+kept. Set that variable to `false` first if the data matters.
 
 If `destroy` hangs on the VPC, it is almost always a load balancer or an ENI
 that Kubernetes created and Terraform does not track. Check the EC2 console

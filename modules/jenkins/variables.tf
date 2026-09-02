@@ -85,7 +85,7 @@ variable "github_repo_url" {
 variable "git_branch" {
   description = "Branch the pipeline reads from and pushes to"
   type        = string
-  default     = "lesson-8-9"
+  default     = "final-project"
 }
 
 variable "job_name" {

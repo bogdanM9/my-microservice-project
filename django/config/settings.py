@@ -52,10 +52,37 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# No database. This application exists to prove the pipeline works, and adding
-# RDS would add cost and moving parts without proving anything more about
-# Jenkins or Argo CD.
-DATABASES = {}
+# Database.
+#
+# The connection details come from a Kubernetes Secret that Terraform writes
+# from the outputs of modules/rds, so no host name and no password is ever
+# committed. When POSTGRES_HOST is not set, which is the case for a plain
+# docker run or a unit test, the application falls back to a local SQLite file
+# and still starts.
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "")
+
+if POSTGRES_HOST:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "HOST": POSTGRES_HOST,
+            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+            "NAME": os.getenv("POSTGRES_DB", "appdb"),
+            "USER": os.getenv("POSTGRES_USER", "dbadmin"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
+            # A pod that cannot reach the database should fail fast rather than
+            # hold a request open until the client gives up.
+            "CONN_MAX_AGE": 60,
+            "OPTIONS": {"connect_timeout": 5},
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

@@ -1,8 +1,8 @@
 // CI pipeline for the Django application.
 //
 // What it does, in order:
-//   1. builds the image from the Dockerfile at the repository root, with Kaniko
-//      so that no Docker daemon is needed inside Kubernetes
+//   1. builds the image from django/Dockerfile with Kaniko, so that no Docker
+//      daemon is needed inside Kubernetes
 //   2. pushes it to ECR
 //   3. rewrites the image tag in charts/django-app/values.yaml
 //   4. commits and pushes that change back to this branch
@@ -74,8 +74,13 @@ spec:
     IMAGE_NAME = 'django-app'
     IMAGE_TAG  = "v1.0.${BUILD_NUMBER}"
 
+    // The application lives in django/ and the Helm chart that deploys it lives
+    // in charts/, so the build context and the file the pipeline rewrites are
+    // in two different places.
+    APP_DIR = 'django'
+
     CHART_VALUES    = 'charts/django-app/values.yaml'
-    GIT_BRANCH_NAME = 'lesson-8-9'
+    GIT_BRANCH_NAME = 'final-project'
 
     COMMIT_NAME  = 'jenkins'
     COMMIT_EMAIL = 'jenkins@ci.local'
@@ -102,8 +107,8 @@ spec:
             set -eu
 
             /kaniko/executor \
-              --context "$(pwd)" \
-              --dockerfile "$(pwd)/Dockerfile" \
+              --context "$(pwd)/${APP_DIR}" \
+              --dockerfile "$(pwd)/${APP_DIR}/Dockerfile" \
               --destination "${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}" \
               --destination "${ECR_REGISTRY}/${IMAGE_NAME}:latest" \
               --cache=true \

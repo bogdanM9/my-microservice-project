@@ -180,6 +180,55 @@ module "jenkins" {
 }
 
 # ---------------------------------------------------------------------------
+# Monitoring: Prometheus and Grafana
+#
+# storage_class comes from the Jenkins module rather than from a string, because
+# that is where the gp3 class is created. Reading it from there is what tells
+# Terraform the class has to exist before Prometheus asks for a volume.
+# ---------------------------------------------------------------------------
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  namespace     = "monitoring"
+  chart_version = var.monitoring_chart_version
+
+  storage_class        = module.jenkins.storage_class_name
+  grafana_service_type = var.grafana_service_type
+
+  depends_on = [module.eks]
+}
+
+# ---------------------------------------------------------------------------
+# Database credentials for the application.
+#
+# Terraform is the only place that knows both halves: the endpoint and password
+# come out of modules/rds, and the application reads them as environment
+# variables. Writing them into a Secret here means the Helm chart in charts/
+# only has to name the Secret, and nothing sensitive is committed.
+# ---------------------------------------------------------------------------
+resource "kubernetes_secret" "django_db" {
+  metadata {
+    name      = var.app_db_secret_name
+    namespace = var.app_namespace
+
+    labels = {
+      "app.kubernetes.io/managed-by" = "terraform"
+      "app.kubernetes.io/part-of"    = "django-app"
+    }
+  }
+
+  data = {
+    POSTGRES_HOST     = module.rds.endpoint
+    POSTGRES_PORT     = tostring(module.rds.port)
+    POSTGRES_DB       = module.rds.database_name
+    POSTGRES_USER     = module.rds.master_username
+    POSTGRES_PASSWORD = module.rds.master_password
+  }
+
+  type = "Opaque"
+}
+
+# ---------------------------------------------------------------------------
 # CD: Argo CD
 # ---------------------------------------------------------------------------
 module "argo_cd" {
