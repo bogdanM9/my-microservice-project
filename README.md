@@ -53,7 +53,7 @@ pipeline that deploys.
 ├── django/        the application: Dockerfile, Jenkinsfile, docker-compose.yaml,
 │                  manage.py, requirements.txt, config/, core/
 │
-└── docs/          architecture.png, cicd-pipeline.png
+└── docs/          architecture.png, cicd-pipeline.png, screenshots/
 ```
 
 ## Prerequisites
@@ -251,6 +251,45 @@ postgres`, because AWS had withdrawn that release from the region.
 Switching the whole database, including to MySQL or to Aurora, is a change in
 `terraform.tfvars` only. The variables are documented in
 `modules/rds/variables.tf`, all typed and described, five of them validated.
+
+## Proof that it ran
+
+The environment is torn down after review, so these are the runs as they
+happened, in order.
+
+**1. `terraform apply`.** The whole platform from one command.
+
+![terraform apply](docs/screenshots/01-terraform-apply.png)
+
+**2. The monitoring namespace.** Prometheus, Grafana, Alertmanager, the operator,
+kube-state-metrics and node-exporter on both nodes.
+
+![kubectl get all -n monitoring](docs/screenshots/02-kubectl-monitoring.png)
+
+**3. The Jenkins pipeline.** Build 4, green, from the `final-project` branch.
+
+![Jenkins build](docs/screenshots/03-jenkins-pipeline.png)
+
+**4. Argo CD.** Synced and Healthy, and the Last Sync panel names the author as
+`jenkins <jenkins@ci.local>` with the message `ci: bump django-app image tag to
+v1.0.4`. That is the whole point of the setup in one screenshot: the deployment
+came from a commit Jenkins wrote, not from anybody running `kubectl`.
+
+![Argo CD](docs/screenshots/04-argocd.png)
+
+**5. The application.** Version `v1.0.4`, the pod name, and the database line
+proving the pod reaches RDS through the Secret Terraform wrote.
+
+![The application](docs/screenshots/05-application.png)
+
+**6. Grafana.** Live cluster metrics, broken down per namespace.
+
+![Grafana](docs/screenshots/06-grafana.png)
+
+**7. Autoscaling.** The HPA reading real CPU, between 2 and 6 replicas, and the
+two pods sitting on different nodes.
+
+![HPA](docs/screenshots/07-hpa.png)
 
 ## Design decisions worth explaining
 
