@@ -23,6 +23,7 @@ controller:
   #   configuration-as-code - reads the JCasC blocks below
   #   credentials-binding   - withCredentials in the Jenkinsfile
   #   job-dsl               - lets the seed job create the pipeline job
+  #   timestamper           - the timestamps() option in the Jenkinsfile
   #
   # The versions are left unpinned, so the init container downloads whatever is
   # current in the update center. That only works while the Jenkins core shipped
@@ -40,6 +41,7 @@ controller:
     - credentials-binding
     - job-dsl
     - github
+    - timestamper
 
   JCasC:
     defaultConfig: true

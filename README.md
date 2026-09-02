@@ -211,6 +211,7 @@ The commit is in GitHub: look at the history of
 | `helm_release.jenkins` fails with `context deadline exceeded` | The controller never became ready inside the timeout. The real reason is in the init container: `kubectl -n jenkins logs jenkins-0 -c init`. |
 | Node group fails with `InvalidParameterCombination ... not eligible for Free Tier` | The account is on the AWS Free Plan. See the note on the instance type further down. |
 | seed-job fails with `script not yet approved for use` | Job DSL script security is on. The JCasC block `job-dsl-security` in `modules/jenkins/values.yaml` turns it off. |
+| Pipeline fails to compile with `Invalid option type "timestamps"` | The `timestamper` plugin is missing from `installPlugins`. Every option used in the Jenkinsfile needs its plugin listed there. |
 
 ## 3. How to view the result in Argo CD
 
