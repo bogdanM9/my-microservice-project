@@ -5,9 +5,9 @@ variable "namespace" {
 }
 
 variable "chart_version" {
-  description = "Version of the jenkins Helm chart"
+  description = "Version of the jenkins Helm chart. It also decides the Jenkins core version, which has to be new enough for the plugins in values.yaml"
   type        = string
-  default     = "5.8.27"
+  default     = "5.9.55"
 }
 
 variable "cluster_name" {

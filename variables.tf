@@ -68,9 +68,16 @@ variable "git_branch" {
 }
 
 variable "jenkins_chart_version" {
-  description = "Version of the jenkins Helm chart. Bump it if Helm reports the version is gone"
+  description = <<-EOT
+    Version of the jenkins Helm chart.
+    The chart version decides the Jenkins core version, and the core has to be
+    at least as new as the plugins the controller downloads at startup.
+    5.8.27 ships core 2.492.2 and the install failed there, because the current
+    plugins already require 2.504.3. 5.9.55 ships core 2.568.2, which is new
+    enough for all of them.
+  EOT
   type        = string
-  default     = "5.8.27"
+  default     = "5.9.55"
 }
 
 variable "argocd_chart_version" {

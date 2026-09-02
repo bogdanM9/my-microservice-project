@@ -23,9 +23,15 @@ controller:
   #   configuration-as-code - reads the JCasC blocks below
   #   credentials-binding   - withCredentials in the Jenkinsfile
   #   job-dsl               - lets the seed job create the pipeline job
-  # Left unpinned on purpose. Pinning a plugin to a version that is not
-  # compatible with the Jenkins core shipped by the chart makes the controller
-  # fail to boot, and the chart already picks matching versions.
+  #
+  # The versions are left unpinned, so the init container downloads whatever is
+  # current in the update center. That only works while the Jenkins core shipped
+  # by the chart is at least as new as what those plugins ask for. On the first
+  # run the chart was pinned to 5.8.27, which ships core 2.492.2, while the
+  # current plugins already required 2.504.3, and the init container died in a
+  # loop with "Multiple plugin prerequisites not met". The chart version in
+  # variables.tf is what keeps these two in step, so bump the chart rather than
+  # trying to hold the plugins back.
   installPlugins:
     - kubernetes
     - workflow-aggregator
@@ -116,11 +122,15 @@ controller:
                 }
               }
 
-  # Jenkins keeps its jobs, config and build history on this volume.
-  persistence:
-    enabled: true
-    storageClass: "${storage_class}"
-    size: 10Gi
+# Jenkins keeps its jobs, config and build history on this volume.
+#
+# This block belongs at the top level of the values file. It was nested under
+# controller: at first, which the chart silently ignores, so the volume came up
+# with the chart defaults instead of the settings below.
+persistence:
+  enabled: true
+  storageClass: "${storage_class}"
+  size: 10Gi
 
 serviceAccount:
   create: false
